@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Piano FTP</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b6e7c">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<style>
+/* Layout: una colonna da registro di allenamento. In alto lo stato (fatto / FTP), poi la striscia delle 32 settimane come indice, sotto il blocco aperto. */
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --line: #d5dbe2; --fg: #16202b; --muted: #5b6876;
+  --accent: #0b6e7c; --accent-soft: #d7ecef; --done: #0b6e7c; --track: #cfd6de;
+  --c-ss: #c98a00; --c-th: #d9541e; --c-vo: #b81d5b; --c-fo: #2a6fc0; --c-fa: #7b8794; --c-sc: #3d8f6a; --c-te: #6a4bc4;
+  --z1: #8a929b; --z2: #2f86e8; --z3: #3fae55; --z4: #e0a800; --z5: #f2672e; --z6: #e02b1d;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10161d; --surface: #18212b; --line: #2b3744; --fg: #e8edf2; --muted: #96a3b1;
+  --accent: #4fc3d1; --accent-soft: #173840; --done: #4fc3d1; --track: #33414f;
+  --c-ss: #f0b63a; --c-th: #ff8552; --c-vo: #f0609a; --c-fo: #6aa9f0; --c-fa: #8d99a6; --c-sc: #62c298; --c-te: #a48cf5;
+  --z1: #7d8792; --z2: #4a9bff; --z3: #5cc46b; --z4: #ffcc3f; --z5: #ff7a45; --z6: #ff4a36;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10161d; --surface: #18212b; --line: #2b3744; --fg: #e8edf2; --muted: #96a3b1;
+  --accent: #4fc3d1; --accent-soft: #173840; --done: #4fc3d1; --track: #33414f;
+  --c-ss: #f0b63a; --c-th: #ff8552; --c-vo: #f0609a; --c-fo: #6aa9f0; --c-fa: #8d99a6; --c-sc: #62c298; --c-te: #a48cf5;
+  --z1: #7d8792; --z2: #4a9bff; --z3: #5cc46b; --z4: #ffcc3f; --z5: #ff7a45; --z6: #ff4a36;
+  color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45 }
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; display: flex; flex-direction: column; gap: 28px }
+h1 { font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance }
+h2 { font-family: var(--display); font-weight: 600; font-size: 24px; line-height: 1.1; margin: 0; text-wrap: balance }
+.sub { color: var(--muted); margin: 6px 0 0 }
+.lab { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted) }
+.num { font-family: var(--display); font-weight: 600; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums }
+.num small { font-size: 16px; font-weight: 500; color: var(--muted) }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-block: 1px solid var(--line) }
+.stats > div { padding: 14px 16px 14px 0; min-width: 0 }
+.stats > div + div { padding-left: 16px; border-left: 1px solid var(--line) }
+.bar { height: 4px; background: var(--track); margin-top: 8px }
+.bar i { display: block; height: 100%; background: var(--done); width: 0 }
+@media (max-width: 560px) { .stats { grid-template-columns: 1fr } .stats > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--line) } h1 { font-size: 32px } }
+
+.strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px }
+.strip { display: grid; grid-template-columns: 26px 1fr; gap: 6px }
+.axis { position: relative; height: 96px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums }
+.axis span { position: absolute; right: 0; transform: translateY(50%) }
+.plot { position: relative; height: 96px; display: flex; gap: 8px; align-items: flex-end; border-bottom: 1px solid var(--line);
+  background: linear-gradient(var(--line), var(--line)) 0 0 / 100% 1px no-repeat, linear-gradient(var(--line), var(--line)) 0 50% / 100% 1px no-repeat }
+.grp { flex: 1; display: flex; gap: 2px; align-items: flex-end; height: 100%; min-width: 0 }
+.wk { flex: 1; min-width: 0; padding: 0; border: 0; background: var(--track); position: relative; cursor: pointer; display: block }
+.wk i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--done) }
+.wk.now { outline: 2px solid var(--fg); outline-offset: 1px }
+.wk:focus-visible, .tab:focus-visible, .row input:focus-visible, .ftp:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.tabs { grid-column: 2; display: flex; gap: 8px }
+.tab { flex: 1; min-width: 0; font: 600 14px var(--display); letter-spacing: .04em; color: var(--muted); background: none; border: 0; border-top: 3px solid transparent; padding: 6px 0; cursor: pointer }
+.tab[aria-selected="true"] { color: var(--fg); border-top-color: var(--accent) }
+
+.week { background: var(--surface); border: 1px solid var(--line) }
+.week + .week { margin-top: 14px }
+.week header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+.week header b { font: 600 18px var(--display); letter-spacing: .02em }
+.week header span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums }
+.week.cur header { background: var(--accent-soft) }
+.row { display: grid; grid-template-columns: 22px 64px 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 14px }
+.row + .row { border-top: 1px solid var(--line) }
+.row input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(--accent) }
+.when { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; white-space: nowrap }
+.when b { color: var(--fg); font-weight: 600 }
+.what { min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; display: block; width: 100% }
+button.what { cursor: pointer }
+button.what .t::after { content: "▾"; color: var(--accent); margin-left: 8px; display: inline-block; text-decoration: none }
+button.what[aria-expanded="true"] .t::after { content: "▴" }
+button.what:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+.detail { padding: 4px 14px 18px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 14px }
+.detail p { margin: 10px 0 0; max-width: 68ch }
+.prof { position: relative; height: 130px; border-bottom: 1px solid var(--line) }
+.prof svg { display: block; width: 100%; height: 100% }
+.prof svg polygon { stroke: var(--surface); stroke-width: 1; vector-effect: non-scaling-stroke }
+.prof .ftpl { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--fg); opacity: .55; pointer-events: none }
+.prof .ftpt { position: absolute; right: 0; font-size: 11px; color: var(--muted); background: var(--surface); padding: 0 4px; transform: translateY(-100%); pointer-events: none }
+.tax { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px }
+.zones { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+.zones span, .steps .z { display: inline-flex; align-items: center; gap: 5px }
+.zones span::before, .sw { content: ""; width: 10px; height: 10px; background: var(--k); flex: none; display: inline-block }
+.steps { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums }
+.steps li { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: baseline; padding: 6px 0 }
+.steps li + li { border-top: 1px solid var(--line) }
+.steps .z { gap: 3px; align-self: center }
+.steps .d { min-width: 0; overflow-wrap: anywhere }
+.steps .d small { color: var(--muted); font-size: 12px; margin-left: 6px }
+.steps .w { color: var(--muted); font-size: 13px; text-align: right; white-space: nowrap }
+.what .t { font-weight: 500; overflow-wrap: anywhere }
+.what .m { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.kind { display: inline-flex; align-items: center; gap: 5px }
+.kind::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--k) }
+.load { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); white-space: nowrap }
+.load b { display: block; color: var(--fg); font: 600 17px var(--display) }
+.row.done .t { color: var(--muted); text-decoration: line-through }
+.ftp { width: 76px; font: 600 16px var(--display); padding: 5px 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); text-align: right }
+@media (max-width: 520px) { .row { grid-template-columns: 22px 1fr auto } .when { grid-column: 2 / 4; grid-row: 1 } .row input[type=checkbox] { grid-row: 1 / 3 } .what { grid-column: 2 } }
+.goal { color: var(--muted); margin: 4px 0 14px }
+.backup { border: 1px solid var(--line); background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 10px }
+.btns { display: flex; gap: 10px }
+.btn { font: 600 16px var(--display); letter-spacing: .03em; padding: 10px 20px; min-height: 44px; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.btn:active { background: var(--accent-soft) }
+body { padding-bottom: env(safe-area-inset-bottom) }
+.foot { color: var(--muted); font-size: 13px; display: flex; gap: 6px 18px; flex-wrap: wrap; justify-content: space-between }
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>Piano FTP 2026-27</h1>
+    <p class="sub">32 settimane dal 12 ottobre 2026 al 23 maggio 2027. Spunta le sedute fatte, tocca il nome di una seduta per vederne la struttura e segna l'FTP dopo ogni Ramp Test.</p>
+  </div>
+
+  <div class="stats">
+    <div><div class="lab">Sedute fatte</div><div class="num"><span id="sDone">0</span> <small>/ <span id="sTot"></span></small></div><div class="bar"><i id="sBar"></i></div></div>
+    <div><div class="lab">Ore pedalate</div><div class="num"><span id="hDone">0</span> <small>/ <span id="hTot"></span> h</small></div><div class="bar"><i id="hBar"></i></div></div>
+    <div><div class="lab">FTP attuale</div><div class="num"><span id="ftpNow">200</span> <small>W · <span id="wkg"></span> W/kg</small></div><div class="sub" id="ftpDelta" style="margin-top:4px;font-size:13px"></div></div>
+  </div>
+
+  <div>
+    <div class="strip-head"><h2>Ore per settimana</h2><span class="lab">Barra piena = fatto · bordo = settimana in corso</span></div>
+    <div class="strip">
+      <div class="axis"><span style="bottom:100%">8 h</span><span style="bottom:50%">4 h</span><span style="bottom:0">0</span></div>
+      <div class="plot" id="plot"></div>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Blocchi"></div>
+    </div>
+  </div>
+
+  <div>
+    <h2 id="bTitle"></h2>
+    <p class="goal" id="bGoal"></p>
+    <div id="weeks"></div>
+  </div>
+
+  <div class="backup">
+    <div><b>Copia di sicurezza</b><br><span class="sub" style="margin:0">Salva le tue spunte e gli FTP in un file, per non perderli se cambi telefono. Su quello nuovo, usa «Importa».</span></div>
+    <div class="btns">
+      <button type="button" class="btn" id="btnExp">Esporta</button>
+      <button type="button" class="btn" id="btnImp">Importa</button>
+      <input type="file" id="fileImp" accept=".json,application/json" hidden>
+    </div>
+    <div class="sub" id="bkMsg" role="status" style="margin:0;font-size:13px"></div>
+  </div>
+
+  <div class="foot"><span id="sync">Caricamento dello stato…</span><span>IF = intensità rispetto all'FTP · TSS = carico della seduta · W/kg calcolati su 72 kg · zone: Z1 &lt;60%, Z2 60-75%, Z3 76-89%, Z4 90-104%, Z5 105-118%, Z6 oltre</span></div>
+</div>
+
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
